@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0c1425">
+  <title>Chasing the Summit | Cycling Performance Atlas</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script defer src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+  <style>
+    :root {
+      --bg: #0c1425;
+      --panel: #14223a;
+      --line: #2c3e58;
+      --text: #edf4ff;
+      --muted: #9eb1c9;
+      --mint: #65dfc5;
+      --orange: #f6ad7c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: radial-gradient(ellipse at 90% 0%, #1a3043 0%, transparent 44%), var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .shell { width: min(1180px, calc(100% - 36px)); margin: 0 auto; padding: 50px 0 55px; }
+    .topline { color: var(--mint); font-size: 11px; font-weight: 750; letter-spacing: .2em; text-transform: uppercase; }
+    .masthead { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin: 16px 0 30px; }
+    h1 { font-size: clamp(32px, 5vw, 53px); line-height: 1.08; letter-spacing: -.055em; margin: 0 0 12px; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; max-width: 680px; }
+    .stamp { color: #bcd0e1; border: 1px solid var(--line); border-radius: 99px; padding: 11px 16px; font-size: 12px; white-space: nowrap; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat { border: 1px solid var(--line); background: #111e33; padding: 19px 22px; border-radius: 15px; }
+    .stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .13em; margin-bottom: 7px; }
+    .stat-value { font-size: 27px; font-weight: 780; letter-spacing: -.04em; }
+    .panel { background: linear-gradient(145deg, #172741, #101d31); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 20px 65px #01071544; padding: 27px 30px 22px; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .panel-header strong { font-size: 16px; letter-spacing: -.02em; }
+    .panel-note { color: var(--muted); font-size: 12px; }
+    .viz-area { position: relative; width: 100%; margin-top: 16px; }
+    #chart { display: block; width: 100%; height: auto; overflow: visible; }
+    .grid path { display: none; }
+    .grid .tick line { stroke: #36485f; stroke-opacity: .6; stroke-dasharray: 3 7; }
+    .axis path, .axis line { stroke: #91a5bd; stroke-opacity: .7; }
+    .axis .tick text { fill: #bac8d9; font-size: 12px; }
+    .axis-label { fill: #a5b5ca; font-size: 13px; }
+    .dot { stroke: #122039; stroke-width: 2; fill-opacity: .95; cursor: crosshair; transition: stroke-width .12s, fill-opacity .12s; }
+    .dot:hover, .dot:focus { stroke: #f2f6ff; stroke-width: 3; fill-opacity: 1; outline: none; }
+    #tooltip { display: none; opacity: 0; position: absolute; z-index: 5; max-width: 290px; min-width: 210px; background: #081424; color: #f4f8ff; border: 1px solid #567086; padding: 16px; border-radius: 12px; box-shadow: 0 12px 36px #0008; pointer-events: none; line-height: 1.55; }
+    .tip-kicker { font-size: 10px; font-weight: 760; text-transform: uppercase; letter-spacing: .14em; color: var(--mint); margin-bottom: 5px; }
+    .tip-name { font-size: 16px; font-weight: 780; margin-bottom: 6px; }
+    .tip-meta { color: #b9c8da; font-size: 12px; }
+    .tip-note { margin-top: 10px; padding-top: 9px; border-top: 1px solid #304357; font-size: 12px; color: #d5e0ee; }
+    #legend { display: flex; gap: 19px; flex-wrap: wrap; margin: 7px 0 0 72px; color: #bbcadb; font-size: 12px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 9px; }
+    .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 50%; }
+    .source { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 18px; color: #8fa5bd; font-size: 12px; line-height: 1.6; }
+    .source a { color: var(--mint); text-decoration: none; }
+    .source a:hover { text-decoration: underline; }
+    .error { color: #ffc5c5; padding: 30px 15px; }
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 20px, 1180px); padding-top: 28px; }
+      .stats { gap: 7px; }
+      .stat { padding: 13px 10px; }
+      .stat-value { font-size: 19px; }
+      .stat-label { font-size: 9px; }
+      .panel { padding: 17px 9px; }
+      #legend { margin-left: 16px; font-size: 11px; }
+      .axis .tick text { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topline">Performance Atlas / Cycling</div>
+    <div class="masthead">
+      <div>
+        <h1 id="title">Chasing the Summit</h1>
+        <p class="subtitle">Fastest Alpe d'Huez climbing times in professional cycling. Explore the riders, their performances, and doping-related notes recorded in the original dataset.</p>
+      </div>
+      <div class="stamp">1994 — 2015 · Tour de France</div>
+    </div>
+
+    <div class="stats" aria-label="Dataset statistics">
+      <div class="stat"><div class="stat-label">Recorded performances</div><div class="stat-value" id="stat-records">—</div></div>
+      <div class="stat"><div class="stat-label">Fastest recorded time</div><div class="stat-value" id="stat-fastest">—</div></div>
+      <div class="stat"><div class="stat-label">Years covered</div><div class="stat-value" id="stat-years">—</div></div>
+    </div>
+
+    <section class="panel" aria-label="Cycling scatterplot visualization">
+      <div class="panel-header">
+        <strong>Climbing performance over time</strong>
+        <span class="panel-note">Hover or focus on a point to see rider details</span>
+      </div>
+
+      <div class="viz-area">
+        <svg id="chart" role="img" aria-label="Scatterplot showing years on the horizontal axis and climbing time on the vertical axis"></svg>
+        <div id="tooltip" role="status" aria-live="polite" data-year="">
+          <div class="tip-kicker">Rider performance</div>
+          <div class="tip-name" id="tip-name"></div>
+          <div class="tip-meta" id="tip-meta"></div>
+          <div class="tip-note" id="tip-note"></div>
+        </div>
+      </div>
+
+      <div id="legend" aria-label="Point color legend">
+        <span class="legend-item"><span class="swatch" style="background:#f6ad7c"></span>Doping-related note recorded</span>
+        <span class="legend-item"><span class="swatch" style="background:#65dfc5"></span>No doping-related note in dataset</span>
+      </div>
+
+      <div class="source">
+        <span>Time in minutes:seconds · Lower is faster</span>
+        <span>Source: <a href="https://github.com/freeCodeCamp/ProjectReferenceData" target="_blank" rel="noopener noreferrer">freeCodeCamp Project Reference Data</a></span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const dataURL = 'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/cyclist-data.json';
+    const width = 1080;
+    const height = 570;
+    const margin = { top: 42, right: 45, bottom: 70, left: 83 };
+    const plotBottom = height - margin.bottom;
+    const plotRight = width - margin.right;
+    const svg = d3.select('#chart').attr('viewBox', `0 0 ${width} ${height}`);
+    const tooltip = d3.select('#tooltip');
+
+    d3.json(dataURL).then(data => {
+      // Use actual UTC Date values so freeCodeCamp can validate each y-value.
+      data.forEach(d => { d.timeDate = new Date(d.Seconds * 1000); });
+
+      const years = d3.extent(data, d => d.Year);
+      const times = d3.extent(data, d => d.timeDate);
+      const xScale = d3.scaleLinear().domain(years).range([margin.left, plotRight]);
+      const yScale = d3.scaleUtc().domain(times).range([margin.top, plotBottom]);
+
+      // Only display axis labels that fall inside the actual dataset range.
+      const yearTicks = d3.range(years[0], years[1] + 1, 4);
+      const xAxis = d3.axisBottom(xScale).tickValues(yearTicks).tickFormat(d3.format('d'));
+      const yAxis = d3.axisLeft(yScale)
+        .ticks(d3.utcSecond.every(30))
+        .tickFormat(d3.utcFormat('%M:%S'));
+
+      svg.append('g')
+        .attr('class', 'grid')
+        .attr('transform', `translate(${margin.left}, 0)`)
+        .call(d3.axisLeft(yScale).ticks(d3.utcSecond.every(30))
+          .tickSize(-(plotRight - margin.left)).tickFormat(''));
+
+      svg.append('g')
+        .attr('id', 'x-axis')
+        .attr('class', 'axis')
+        .attr('transform', `translate(0, ${plotBottom})`)
+        .call(xAxis);
+
+      svg.append('g')
+        .attr('id', 'y-axis')
+        .attr('class', 'axis')
+        .attr('transform', `translate(${margin.left}, 0)`)
+        .call(yAxis);
+
+      svg.append('text')
+        .attr('class', 'axis-label')
+        .attr('x', (margin.left + plotRight) / 2)
+        .attr('y', height - 20)
+        .attr('text-anchor', 'middle')
+        .text('Year');
+
+      svg.append('text')
+        .attr('class', 'axis-label')
+        .attr('text-anchor', 'middle')
+        .attr('transform', `translate(25, ${(margin.top + plotBottom) / 2}) rotate(-90)`)
+        .text('Climbing time (min:sec)');
+
+      function showTooltip(event, d) {
+        tooltip.attr('data-year', d.Year);
+        d3.select('#tip-name').text(d.Name);
+        d3.select('#tip-meta').text(`${d.Nationality} · ${d.Year} · ${d.Time} · Rank #${d.Place}`);
+        d3.select('#tip-note').text(d.Doping || 'No doping-related note included in the dataset.');
+
+        const area = document.querySelector('.viz-area').getBoundingClientRect();
+        const svgRect = svg.node().getBoundingClientRect();
+        const px = svgRect.left - area.left + (xScale(d.Year) / width) * svgRect.width;
+        const py = svgRect.top - area.top + (yScale(d.timeDate) / height) * svgRect.height;
+        const tooltipX = Math.max(110, Math.min(px, area.width - 110));
+        const showBelow = py < 200;
+
+        tooltip.style('left', tooltipX + 'px')
+          .style('top', py + 'px')
+          .style('transform', showBelow ? 'translate(-50%, 18px)' : 'translate(-50%, calc(-100% - 18px))')
+          .style('display', 'block')
+          .style('opacity', 1);
+      }
+
+      function hideTooltip() {
+        tooltip.style('display', 'none').style('opacity', 0);
+      }
+
+      svg.selectAll('circle.dot')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('class', 'dot')
+        .attr('data-xvalue', d => d.Year)
+        .attr('data-yvalue', d => d.timeDate.toISOString())
+        .attr('cx', d => xScale(d.Year))
+        .attr('cy', d => yScale(d.timeDate))
+        .attr('r', 7.5)
+        .attr('fill', d => d.Doping ? '#f6ad7c' : '#65dfc5')
+        .attr('tabindex', 0)
+        .attr('role', 'img')
+        .attr('aria-label', d => `${d.Name}, ${d.Year}, ${d.Time}`)
+        .on('mouseover', showTooltip)
+        .on('mousemove', showTooltip)
+        .on('mouseout', hideTooltip)
+        .on('focus', showTooltip)
+        .on('blur', hideTooltip);
+
+      document.getElementById('stat-records').textContent = data.length;
+      document.getElementById('stat-fastest').textContent = d3.min(data, d => d.Seconds) === undefined
+        ? '—' : data.find(d => d.Seconds === d3.min(data, p => p.Seconds)).Time;
+      document.getElementById('stat-years').textContent = `${years[0]}–${years[1]}`;
+    }).catch(error => {
+      console.error('Could not load the cyclist dataset:', error);
+      d3.select('.viz-area').append('p').attr('class', 'error')
+        .text('Could not load the cycling data. Please check your internet connection and reload the page.');
+    });
+  </script>
+</body>
+</html>
